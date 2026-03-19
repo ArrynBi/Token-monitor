@@ -56,12 +56,11 @@ ACCENT_SOFT = QColor("#ffb36c")
 DETAIL_BG = "#0d1728"
 DETAIL_PANEL = "#121f35"
 LINE = "#233654"
-DETAIL_WIDTH = 312
-DETAIL_HEIGHT = 334
-HELP_WIDTH = 396
-HELP_HEIGHT = 360
+DETAIL_WIDTH = 356
+DETAIL_HEIGHT = 366
+HELP_WIDTH = 420
+HELP_HEIGHT = 390
 ORB_MASK_INSET = 10
-INVITE_URL = "https://aixj.vip/register?ref=v0ycheev"
 
 
 def _format_compact_int(value: int) -> str:
@@ -210,22 +209,6 @@ class SettingsDialog(QDialog):
         self.message.setWordWrap(True)
         layout.addWidget(self.message)
 
-        invite_title = QLabel("邀请注册链接")
-        invite_title.setProperty("muted", True)
-        layout.addWidget(invite_title)
-
-        invite_link = QLabel(f'<a href="{INVITE_URL}">{INVITE_URL}</a>')
-        invite_link.setOpenExternalLinks(True)
-        invite_link.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextBrowserInteraction | Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-        invite_link.setWordWrap(True)
-        invite_link.setStyleSheet(
-            f"color: {ORB_PROGRESS.name()}; font-size: 12px; background: {DETAIL_BG};"
-            f" border: 1px solid {LINE}; border-radius: 10px; padding: 10px;"
-        )
-        layout.addWidget(invite_link)
-
         buttons = QDialogButtonBox()
         cancel = buttons.addButton("Cancel", QDialogButtonBox.ButtonRole.RejectRole)
         save = buttons.addButton("Save", QDialogButtonBox.ButtonRole.AcceptRole)
@@ -287,7 +270,7 @@ class HelpDialog(QDialog):
         help_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         help_text.setStyleSheet(
             f"background: {DETAIL_BG}; color: {TEXT.name()}; border: 1px solid {LINE};"
-            f" border-radius: 12px; padding: 8px; font-size: 12px;"
+            f" border-radius: 12px; padding: 10px; font-size: 12px;"
         )
         help_text.setHtml(
             "<div style='line-height:1.6;'>"
@@ -300,10 +283,10 @@ class HelpDialog(QDialog):
             "<b>Avg Delay</b>: 平均响应耗时。<br>"
             "<b>Expires</b>: 套餐或订阅到期时间。<br><br>"
             "双击悬浮球展开或收起详情卡。<br>"
-            "右键悬浮球可以刷新、查看 Help、打开 Settings。<br>"
-            f"邀请注册链接：<a href='{INVITE_URL}'>{INVITE_URL}</a>"
+            "右键悬浮球可以刷新、查看 Help、打开 Settings。"
             "</div>"
         )
+        help_text.setReadOnly(True)
         layout.addWidget(help_text, 1)
 
         close_button = QPushButton("Close")
@@ -330,19 +313,30 @@ class DetailPopup(QDialog):
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
+        layout.setSpacing(11)
 
         header = QHBoxLayout()
+        header.setSpacing(6)
         layout.addLayout(header)
 
-        title = QLabel("Usage Details")
-        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {TEXT.name()};")
+        title = QLabel("Usage Detail")
+        title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {TEXT.name()};")
         header.addWidget(title)
         header.addStretch(1)
 
-        for text, callback in (("R", owner.refresh_now), ("?", owner.open_help), ("S", owner.open_settings), ("X", owner.toggle_details)):
+        for text, tooltip, callback in (
+            ("R", "Refresh", owner.refresh_now),
+            ("?", "Help", owner.open_help),
+            ("S", "Settings", owner.open_settings),
+            ("X", "Close", owner.toggle_details),
+        ):
             button = QPushButton(text)
-            button.setFixedSize(QSize(28, 28))
+            button.setToolTip(tooltip)
+            button.setFixedSize(QSize(26, 26))
+            button.setStyleSheet(
+                f"background: {ORB_CORE.name()}; color: {TEXT.name()}; border: 1px solid {LINE};"
+                f" border-radius: 9px; font-size: 11px; font-weight: 700; padding: 0px;"
+            )
             button.clicked.connect(callback)
             header.addWidget(button)
 
@@ -354,15 +348,18 @@ class DetailPopup(QDialog):
         self.labels["plan"] = plan
 
         hero = QGridLayout()
-        hero.setHorizontalSpacing(10)
+        hero.setHorizontalSpacing(12)
         hero.setVerticalSpacing(10)
+        hero.setColumnStretch(0, 1)
+        hero.setColumnStretch(1, 1)
         layout.addLayout(hero)
         self.labels["remaining"] = self._metric(hero, "Remaining", 0)
         self.labels["spent"] = self._metric(hero, "Used Today", 1)
 
         stats = QGridLayout()
-        stats.setVerticalSpacing(8)
-        stats.setHorizontalSpacing(12)
+        stats.setVerticalSpacing(9)
+        stats.setHorizontalSpacing(14)
+        stats.setColumnMinimumWidth(0, 74)
         stats.setColumnStretch(0, 0)
         stats.setColumnStretch(1, 1)
         layout.addLayout(stats)
@@ -377,17 +374,17 @@ class DetailPopup(QDialog):
     def _metric(self, parent: QGridLayout, title: str, column: int) -> QLabel:
         card = QFrame()
         card.setStyleSheet(
-            f"background: {ORB_CORE.name()}; border: 1px solid {LINE}; border-radius: 12px;"
+            f"background: rgba(18, 31, 53, 235); border: none; border-radius: 14px;"
         )
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 11, 12, 11)
+        layout.setSpacing(5)
         title_label = QLabel(title)
         title_label.setProperty("muted", True)
-        title_label.setStyleSheet("font-size: 12px; font-weight: 600;")
+        title_label.setStyleSheet("font-size: 11px; font-weight: 600;")
         value = QLabel("-")
         value.setWordWrap(True)
-        value.setStyleSheet(f"font-family: Consolas; font-size: 20px; font-weight: 700; color: {TEXT.name()};")
+        value.setStyleSheet(f"font-family: Consolas; font-size: 19px; font-weight: 700; color: {TEXT.name()};")
         layout.addWidget(title_label)
         layout.addWidget(value)
         parent.addWidget(card, 0, column)
@@ -396,12 +393,12 @@ class DetailPopup(QDialog):
     def _stat_line(self, parent: QGridLayout, title: str, row: int) -> QLabel:
         key = QLabel(title)
         key.setProperty("muted", True)
-        key.setStyleSheet("font-size: 12px; font-weight: 600;")
+        key.setStyleSheet("font-size: 11px; font-weight: 600;")
         key.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         value = QLabel("-")
         value.setWordWrap(True)
         value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        value.setStyleSheet(f"font-size: 12px; color: {TEXT.name()};")
+        value.setStyleSheet(f"font-size: 11px; color: {TEXT.name()};")
         value.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         parent.addWidget(key, row, 0)
         parent.addWidget(value, row, 1)

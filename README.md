@@ -1,80 +1,61 @@
 # token-monitor
 
-一个为 Windows 设计的置顶浮窗。当前版本使用 Qt 透明窗口来绘制悬浮球，优先适配 `https://aixj.vip`，展示：
+`token-monitor` 是一个面向 Windows 的置顶悬浮球，用来查看 OpenAI 兼容接口或 OpenAI 官方组织接口的用量情况。
 
-- 当前套餐名称
-- 今日剩余额度
-- 今日已用金额
-- 请求数、tokens、缓存命中、TPM / RPM、平均耗时
-- 过期时间
+当前版本重点展示：
 
-## 说明
+- 套餐或来源名称
+- 当前周期剩余额度
+- 当前周期已用金额
+- 请求数、输入输出 tokens、缓存读取、TPM / RPM、平均耗时
+- 订阅到期时间
+- 最近一次刷新状态
 
-这个项目现在有两种取数模式：
+## 支持的取数方式
 
-1. `aixj.vip` / 类似网关
+程序现在支持两类上游：
 
-- 优先使用 `GET /v1/usage`
-- 这也是你这次提供的 JSON extractor 对应的接口
+1. OpenAI 兼容网关
 
-2. OpenAI 官方
+- 优先请求 `GET /v1/usage`
+- 适合像 `https://aixj.vip` 这类会直接返回套餐、余额、请求统计的服务
 
-- 使用 `GET /v1/organization/usage/completions`
-- 使用 `GET /v1/organization/costs`
+2. OpenAI 官方组织接口
 
-## 已实测的 aixj.vip 返回内容
+- `GET /v1/organization/usage/completions`
+- `GET /v1/organization/costs`
 
-我已用你提供的 API Key 对 `https://aixj.vip/v1/usage` 做过真实请求，返回字段包括：
+当 `Base URL` 包含 `api.openai.com` 时，程序会自动切换到 OpenAI 官方组织统计逻辑。
 
-- `isValid`
-- `planName`
-- `remaining`
-- `unit`
-- `subscription.daily_limit_usd`
-- `subscription.daily_usage_usd`
-- `subscription.expires_at`
-- `usage.average_duration_ms`
-- `usage.rpm`
-- `usage.tpm`
-- `usage.today.actual_cost`
-- `usage.today.input_tokens`
-- `usage.today.output_tokens`
-- `usage.today.cache_read_tokens`
-- `usage.today.requests`
-- `usage.today.total_tokens`
-- `usage.total.*`
+## 界面说明
 
-其中一次真实返回里，关键值是：
+悬浮球主界面会显示：
 
-- `planName = Codex100刀订阅专用`
-- `remaining = 99.121656`
-- `subscription.daily_limit_usd = 100`
-- `subscription.daily_usage_usd = 0.878344`
-- `usage.today.requests = 28`
-- `usage.today.input_tokens = 119620`
-- `usage.today.output_tokens = 27831`
-- `usage.today.cache_read_tokens = 671616`
-- `usage.average_duration_ms = 22944.75`
-- `usage.tpm = 7475`
+- 中间主数字：当前剩余额度
+- 进度环：当前周期已用比例
+- 底部信息：请求数与已用百分比
+- 侧边小色点：当前状态提示
 
-所以这个程序现在会把 `aixj.vip` 版本的主视图设计成：
+详情弹窗会显示：
 
-- 大号主数字显示“今日剩余金额”
-- 进度条显示“今日已用 / 每日总额度”
-- 下方卡片显示请求、tokens、缓存读取、吞吐和平均时延
-- Footer 显示过期时间和最近刷新状态
+- `Remaining`
+- `Used Today`
+- `Requests`
+- `Tokens`
+- `Cache Read`
+- `TPM / RPM`
+- `Avg Delay`
+- `Expires`
+- `Status`
 
-## 关于 aixj.vip 官网
+## 使用方式
 
-我还检查了它首页公开资源：
+- 左键拖动悬浮球可以移动位置
+- 双击悬浮球可以展开或收起详情弹窗
+- 右键悬浮球可以打开快捷菜单
+- 详情弹窗顶部可以快速执行 `Refresh`、`Help`、`Settings`、`Close`
 
-- 首页是一个前端单页应用
-- 页面公开配置里能看到站点名 `AI新境 - AI API Gateway`
-- 前端资源里至少能明确看到 `/api/v1` 这一组后端入口
-
-这次我没有使用你提供的网站账号密码登录后台，因为公开 API 响应已经足够完成这个版本，也更安全。
-
-## 运行
+## 安装与运行
 
 1. 进入项目目录
 2. 安装依赖
@@ -83,92 +64,68 @@
 python -m pip install -r requirements.txt
 ```
 
-3. 用 Python 3.11+ 运行
+3. 运行程序
 
 ```powershell
 python main.py
 ```
 
-首次运行会在项目根目录生成一个 `config.json`。然后在设置里填入：
+首次运行会自动生成 `config.json`。
 
-- `Base URL`，默认是 `https://aixj.vip`
-- `API Key`
-- `Organization ID`
-  使用 `aixj.vip` 时通常可以留空
-  使用 `api.openai.com` 时需要填写 `org_...`
-- `Fallback Budget (USD)`
-  当服务没有明确返回额度上限时，用这个值兜底
-- `Refresh Interval`
+## 配置说明
 
-## 关于第三方 OpenAI 兼容地址
+可在设置窗口或 `config.json` 中配置：
 
-像 `https://aixj.vip` 这类 OpenAI 兼容网关，除了常见的：
+- `base_url`
+  OpenAI 兼容服务地址，默认是 `https://aixj.vip`
+- `api_key`
+  你的 API Key
+- `organization_id`
+  使用 OpenAI 官方组织接口时需要填写；兼容网关通常可留空
+- `fallback_budget_usd`
+  当上游没有明确返回额度上限时，使用这个值估算剩余额度
+- `refresh_interval_seconds`
+  自动刷新间隔，最小 30 秒
 
-- `GET /v1/models`
-- `POST /v1/chat/completions`
-
-有些还会像 `aixj.vip` 一样额外提供：
-
-- `GET /v1/usage`
-
-这比 OpenAI 官方的 organization 统计接口更适合做个人浮窗监控，因为它直接返回：
-
-- 是否有效
-- 当前套餐名
-- 剩余额度
-- 每日额度和每日使用
-- 当日请求与 token 数据
-
-如果你切回 OpenAI 官方地址，程序会自动改用 organization usage / costs 逻辑。
-
-## OpenAI 官方参考
-
-- `Base URL = https://api.openai.com`
-- 拥有组织统计权限的 `Admin API Key`
-- 对应的 `Organization ID`
-
-官方文档：
-
-- https://platform.openai.com/docs/api-reference/usage/completions_object
-- https://platform.openai.com/docs/api-reference/usage/costs
-- https://platform.openai.com/docs/api-reference/administration
-
-## 使用
-
-- 拖动顶部标题条可以移动浮窗
-- `Refresh` 立即刷新
-- `Settings` 打开配置窗口
-- `X` 关闭程序
+示例配置见 [config.example.json](./config.example.json)。
 
 ## 打包 EXE
 
-这个项目已经补好了 `PyInstaller` 打包配置：
+项目已包含 PyInstaller 配置：
 
-- [token-monitor.spec](C:/Users/Allen/Desktop/Coding/token-monitor/token-monitor.spec)
-- [build_exe.bat](C:/Users/Allen/Desktop/Coding/token-monitor/build_exe.bat)
+- [token-monitor.spec](./token-monitor.spec)
+- [build_exe.bat](./build_exe.bat)
 
-直接双击或在终端运行：
+直接运行：
 
 ```powershell
 build_exe.bat
 ```
 
-打包完成后，产物在：
+打包完成后，输出文件位于：
 
 ```text
 dist/token-monitor.exe
 ```
 
-`exe` 模式下会在 `exe` 同目录自动生成和读取 `config.json`。
+在 `exe` 模式下，程序会在可执行文件同目录读取和生成 `config.json`。
 
-## 文件结构
+## 依赖
+
+- Python 3.11+
+- PySide6
+
+## 项目结构
 
 ```text
 token-monitor/
   main.py
   config.example.json
+  build_exe.bat
+  token-monitor.spec
   src/
     token_monitor/
+      __init__.py
       app.py
       config.py
       openai_api.py
