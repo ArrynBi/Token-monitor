@@ -1,5 +1,9 @@
 # token-monitor
 
+如果只想下载程序，直接点击这里：
+
+- [下载 token-monitor.exe](https://github.com/ArrynBi/Token-monitor/releases/latest/download/token-monitor.exe)
+
 `token-monitor` 是一个面向 Windows 的置顶悬浮球，用来查看 OpenAI 兼容接口或 OpenAI 官方组织接口的用量情况。
 
 当前版本重点展示：
