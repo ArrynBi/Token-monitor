@@ -1,9 +1,5 @@
 # token-monitor
 
-如果只想下载程序，直接点击这里：
-
-- [GitHub Releases](https://github.com/ArrynBi/Token-monitor/releases)
-
 `token-monitor` 是一个桌面置顶悬浮球，用来查看 OpenAI 兼容接口或 OpenAI 官方组织接口的用量情况。
 
 当前版本重点展示：
