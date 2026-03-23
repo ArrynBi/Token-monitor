@@ -64,6 +64,8 @@ def _request_json(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        "User-Agent": "token-monitor/1.0 (+https://github.com/ArrynBi/Token-monitor)",
+        "Accept": "application/json",
     }
     if organization_id:
         headers["OpenAI-Organization"] = organization_id
@@ -169,20 +171,20 @@ def _fetch_gateway_usage(config: AppConfig) -> UsageSnapshot:
 
     remaining = _as_float(page.get("remaining", page.get("balance")))
 
-    period_name = "Today"
+    period_name = "今天"
     budget_usd = daily_limit
     period_cost_usd = daily_usage
 
     if monthly_limit > 0:
-        period_name = "This month"
+        period_name = "本月"
         budget_usd = monthly_limit
         period_cost_usd = monthly_usage or _as_float(total.get("actual_cost") or total.get("cost"))
     elif weekly_limit > 0:
-        period_name = "This week"
+        period_name = "本周"
         budget_usd = weekly_limit
         period_cost_usd = weekly_usage
     elif daily_limit > 0:
-        period_name = "Today"
+        period_name = "今天"
         budget_usd = daily_limit
         period_cost_usd = daily_usage
     elif remaining > 0:
@@ -201,7 +203,7 @@ def _fetch_gateway_usage(config: AppConfig) -> UsageSnapshot:
 
     return UsageSnapshot(
         source_label=_host_label(config.base_url),
-        plan_name=str(page.get("planName") or "Gateway Usage").strip(),
+        plan_name=str(page.get("planName") or "网关用量").strip(),
         period_name=period_name,
         unit=str(page.get("unit") or "USD"),
         is_valid=is_valid,
@@ -264,8 +266,8 @@ def _fetch_openai_org_usage(config: AppConfig) -> UsageSnapshot:
 
     return UsageSnapshot(
         source_label=_host_label(config.base_url),
-        plan_name="OpenAI Organization Usage",
-        period_name="This month",
+        plan_name="OpenAI 组织用量",
+        period_name="本月",
         unit="USD",
         is_valid=True,
         budget_usd=budget_usd,
@@ -291,7 +293,7 @@ def _fetch_openai_org_usage(config: AppConfig) -> UsageSnapshot:
 
 def fetch_snapshot(config: AppConfig) -> UsageSnapshot:
     if not config.api_key:
-        raise OpenAIMonitorError("请先在 Settings 中填写 API Key。")
+        raise OpenAIMonitorError("请先在设置中填写 API 密钥。")
 
     if "api.openai.com" in config.base_url:
         return _fetch_openai_org_usage(config)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 import math
+from pathlib import Path
 import queue
 import sys
 import threading
@@ -12,7 +13,9 @@ from PySide6.QtGui import (
     QAction,
     QColor,
     QContextMenuEvent,
+    QCursor,
     QFont,
+    QIcon,
     QMouseEvent,
     QPainter,
     QPaintEvent,
@@ -32,15 +35,18 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMenu,
     QPushButton,
+    QScrollArea,
+    QSizeGrip,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
-from .config import AppConfig, ConfigError, load_config, save_config
+from .config import ApiProfile, AppConfig, ConfigError, load_config, save_config
 from .openai_api import OpenAIMonitorError, UsageSnapshot, fetch_snapshot
 
 
+APP_NAME = "Token悬浮球"
 ORB_BG = QColor("#08111f")
 ORB_CORE = QColor("#101a2d")
 ORB_EDGE = QColor("#243a5d")
@@ -61,6 +67,20 @@ DETAIL_HEIGHT = 366
 HELP_WIDTH = 420
 HELP_HEIGHT = 390
 ORB_MASK_INSET = 10
+
+
+def _asset_path(name: str) -> Path:
+    return Path(__file__).resolve().parent / "assets" / name
+
+
+def _load_app_icon() -> QIcon:
+    icon_path = _asset_path("token_orb.svg")
+    if icon_path.exists():
+        return QIcon(str(icon_path))
+    return QIcon()
+
+
+APP_ICON = _load_app_icon()
 
 
 def _format_compact_int(value: int) -> str:
@@ -113,19 +133,35 @@ def _rgba(color: QColor, alpha: int) -> QColor:
 
 BASE_DIALOG_STYLE = f"""
 QDialog {{
-    background: {DETAIL_BG};
+    background: transparent;
     color: {TEXT.name()};
+}}
+QFrame#shell {{
+    background: {DETAIL_BG};
+    border: 1px solid {LINE};
+    border-radius: 22px;
 }}
 QFrame#panel {{
     background: {DETAIL_PANEL};
     border: 1px solid {LINE};
     border-radius: 16px;
 }}
+QFrame#titlebar {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #172844, stop:0.72 #12203a, stop:1 #1a2740);
+    border: none;
+    border-top-left-radius: 22px;
+    border-top-right-radius: 22px;
+}}
 QLabel[muted="true"] {{
     color: {MUTED.name()};
 }}
 QLabel[accent="true"] {{
     color: {ACCENT_SOFT.name()};
+    font-weight: 700;
+}}
+QLabel[titlebar="true"] {{
+    color: {TEXT.name()};
     font-weight: 700;
 }}
 QLineEdit {{
@@ -152,30 +188,114 @@ QPushButton[accent="true"] {{
     border-color: {ACCENT.name()};
     font-weight: 700;
 }}
+QPushButton[titlebar="true"] {{
+    background: qradialgradient(cx:0.35, cy:0.3, radius:0.92,
+        fx:0.35, fy:0.3,
+        stop:0 rgba(41, 68, 110, 240),
+        stop:0.62 rgba(16, 26, 45, 238),
+        stop:1 rgba(8, 17, 31, 245));
+    color: {TEXT.name()};
+    border: 1px solid rgba(143, 180, 255, 78);
+    border-radius: 14px;
+    padding: 0px;
+}}
+QPushButton[titlebar="true"]:hover {{
+    border-color: {ACCENT.name()};
+    background: qradialgradient(cx:0.35, cy:0.3, radius:0.92,
+        fx:0.35, fy:0.3,
+        stop:0 rgba(255, 179, 108, 235),
+        stop:0.55 rgba(255, 138, 61, 230),
+        stop:1 rgba(117, 58, 21, 220));
+}}
+QSizeGrip {{
+    width: 16px;
+    height: 16px;
+}}
+"""
+
+MENU_STYLE = f"""
+QMenu {{
+    background: {DETAIL_PANEL};
+    color: {TEXT.name()};
+    border: 1px solid {LINE};
+    border-radius: 10px;
+    padding: 6px;
+}}
+QMenu::item {{
+    padding: 6px 22px;
+    border-radius: 8px;
+}}
+QMenu::item:selected {{
+    background: {ACCENT.name()};
+    color: #101010;
+}}
 """
 
 
 class SettingsDialog(QDialog):
     def __init__(self, parent: "MonitorWindow", config: AppConfig) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Token Monitor Settings")
+        self.setWindowFlags((self.windowFlags() | Qt.WindowType.FramelessWindowHint) & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowTitle(f"{APP_NAME} 设置")
+        self.setWindowIcon(APP_ICON)
         self.setModal(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setStyleSheet(BASE_DIALOG_STYLE)
-        self.setFixedWidth(470)
+        self.setMinimumSize(520, 620)
+        self.resize(config.window.settings_width, config.window.settings_height)
         self.result_config: AppConfig | None = None
+        self.profile_editors: list[dict[str, object]] = []
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 14, 14, 14)
+        root.setContentsMargins(8, 8, 8, 8)
 
-        panel = QFrame(objectName="panel")
-        root.addWidget(panel)
-        layout = QVBoxLayout(panel)
+        shell = QFrame(objectName="shell")
+        root.addWidget(shell)
+        shell_layout = QVBoxLayout(shell)
+        shell_layout.setContentsMargins(0, 0, 0, 0)
+        shell_layout.setSpacing(0)
+
+        title_bar = DialogTitleBar(self)
+        shell_layout.addWidget(title_bar)
+
+        body = QWidget()
+        shell_layout.addWidget(body, 1)
+        layout = QVBoxLayout(body)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        title = QLabel("Token Monitor Settings")
+        title = QLabel(f"{APP_NAME} 设置")
         title.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {TEXT.name()};")
         layout.addWidget(title)
+
+        active_label = QLabel(f"当前启用: {config.current_profile.name}")
+        active_label.setProperty("accent", True)
+        layout.addWidget(active_label)
+
+        hint = QLabel("API 列表支持添加多个配置。Base URL 只填主域名，不要带 /v1。")
+        hint.setProperty("muted", True)
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background: transparent;")
+        layout.addWidget(scroll, 1)
+
+        scroll_content = QWidget()
+        scroll.setWidget(scroll_content)
+        self.profile_layout = QVBoxLayout(scroll_content)
+        self.profile_layout.setContentsMargins(0, 0, 0, 0)
+        self.profile_layout.setSpacing(10)
+
+        for profile in config.profiles:
+            self._add_profile_editor(profile)
+
+        add_profile_button = QPushButton("+ 新增 API")
+        add_profile_button.setProperty("accent", True)
+        add_profile_button.clicked.connect(lambda: self._add_profile_editor())
+        layout.addWidget(add_profile_button, alignment=Qt.AlignmentFlag.AlignLeft)
 
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -183,35 +303,28 @@ class SettingsDialog(QDialog):
         form.setVerticalSpacing(12)
         layout.addLayout(form)
 
-        self.base_url = QLineEdit(config.base_url)
-        self.api_key = QLineEdit(config.api_key)
-        self.api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.organization_id = QLineEdit(config.organization_id)
         self.fallback_budget = QLineEdit(str(config.fallback_budget_usd))
         self.refresh_interval = QLineEdit(str(config.refresh_interval_seconds))
         self.alpha = QLineEdit(str(config.window.alpha))
 
         rows = [
-            ("Base URL", self.base_url),
-            ("API Key", self.api_key),
-            ("Organization ID", self.organization_id),
-            ("Fallback Budget", self.fallback_budget),
-            ("Refresh Interval", self.refresh_interval),
-            ("Window Alpha", self.alpha),
+            ("兜底额度（无明确额度时）", self.fallback_budget),
+            ("刷新间隔", self.refresh_interval),
+            ("窗口透明度", self.alpha),
         ]
         for label_text, widget in rows:
             label = QLabel(label_text)
             label.setProperty("muted", True)
             form.addRow(label, widget)
 
-        self.message = QLabel("双击悬浮球展开详情，右键可以快速刷新和打开帮助。")
+        self.message = QLabel("双击悬浮球展开详情，右键菜单和详情卡都可以一键切换 API。")
         self.message.setProperty("muted", True)
         self.message.setWordWrap(True)
         layout.addWidget(self.message)
 
         buttons = QDialogButtonBox()
-        cancel = buttons.addButton("Cancel", QDialogButtonBox.ButtonRole.RejectRole)
-        save = buttons.addButton("Save", QDialogButtonBox.ButtonRole.AcceptRole)
+        cancel = buttons.addButton("取消", QDialogButtonBox.ButtonRole.RejectRole)
+        save = buttons.addButton("保存", QDialogButtonBox.ButtonRole.AcceptRole)
         save.setProperty("accent", True)
         buttons.rejected.connect(self.reject)
         buttons.accepted.connect(self._save)
@@ -219,16 +332,148 @@ class SettingsDialog(QDialog):
         cancel.setAutoDefault(False)
         save.setAutoDefault(True)
 
+        grip_row = QHBoxLayout()
+        grip_row.setContentsMargins(0, 0, 0, 0)
+        grip_row.addStretch(1)
+        size_grip = QSizeGrip(self)
+        grip_row.addWidget(size_grip)
+        layout.addLayout(grip_row)
+
+        self._update_profile_editor_titles()
+
+    def _add_profile_editor(self, profile: ApiProfile | None = None) -> None:
+        profile = profile or ApiProfile(name=f"API {len(self.profile_editors) + 1}", base_url="", api_key="", organization_id="")
+        section = QFrame(objectName="panel")
+        self.profile_layout.addWidget(section)
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(8)
+        layout.addLayout(header)
+
+        title = QLabel("API")
+        title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {TEXT.name()};")
+        header.addWidget(title)
+        header.addStretch(1)
+
+        remove_button = QPushButton("删除")
+        remove_button.setFixedHeight(28)
+        header.addWidget(remove_button)
+
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(10)
+        layout.addLayout(form)
+
+        fields = {
+            "name": QLineEdit(profile.name),
+            "base_url": QLineEdit(profile.base_url),
+            "api_key": QLineEdit(profile.api_key),
+            "organization_id": QLineEdit(profile.organization_id),
+        }
+        fields["api_key"].setEchoMode(QLineEdit.EchoMode.Password)
+
+        rows = [
+            ("名称", fields["name"]),
+            ("Base URL", fields["base_url"]),
+            ("API Key", fields["api_key"]),
+            ("组织 ID", fields["organization_id"]),
+        ]
+        for label_text, widget in rows:
+            label = QLabel(label_text)
+            label.setProperty("muted", True)
+            form.addRow(label, widget)
+
+        editor = {
+            "widget": section,
+            "title": title,
+            "remove": remove_button,
+            **fields,
+        }
+        self.profile_editors.append(editor)
+
+        remove_button.clicked.connect(lambda: self._remove_profile_editor(editor))
+        fields["name"].textChanged.connect(self._update_profile_editor_titles)
+        self._update_profile_editor_titles()
+
+    def _remove_profile_editor(self, editor: dict[str, object]) -> None:
+        if len(self.profile_editors) <= 1:
+            self.message.setText("至少保留一个 API 配置。")
+            self.message.setStyleSheet(f"color: {BAD.name()};")
+            return
+
+        self.profile_editors.remove(editor)
+        widget = editor["widget"]
+        if isinstance(widget, QWidget):
+            widget.hide()
+            widget.deleteLater()
+        self._update_profile_editor_titles()
+
+    def _update_profile_editor_titles(self) -> None:
+        for index, editor in enumerate(self.profile_editors):
+            name_field = editor["name"]
+            title = editor["title"]
+            remove_button = editor["remove"]
+            if not isinstance(name_field, QLineEdit) or not isinstance(title, QLabel) or not isinstance(remove_button, QPushButton):
+                continue
+
+            name = name_field.text().strip() or f"API {index + 1}"
+            suffix = " · 当前" if index == self.parent().config.active_profile_index else ""
+            title.setText(f"API {index + 1} · {name}{suffix}")
+            remove_button.setEnabled(len(self.profile_editors) > 1)
+
+    def _read_profile(self, fields: dict[str, object], index: int) -> ApiProfile | None:
+        name_widget = fields["name"]
+        base_widget = fields["base_url"]
+        api_widget = fields["api_key"]
+        org_widget = fields["organization_id"]
+        if not all(isinstance(widget, QLineEdit) for widget in (name_widget, base_widget, api_widget, org_widget)):
+            return None
+
+        base_url = base_widget.text().strip().rstrip("/")
+        api_key = api_widget.text().strip()
+        organization_id = org_widget.text().strip()
+        if not any((base_url, api_key, organization_id)):
+            return None
+
+        return ApiProfile(
+            name=name_widget.text().strip() or f"API {index + 1}",
+            base_url=base_url or "https://aixj.vip",
+            api_key=api_key,
+            organization_id=organization_id,
+        )
+
     def _save(self) -> None:
         try:
+            active_editor = self.profile_editors[min(self.parent().config.active_profile_index, len(self.profile_editors) - 1)]
+            profiles: list[ApiProfile] = []
+            active_profile_index = 0
+            for index, editor in enumerate(self.profile_editors):
+                profile = self._read_profile(editor, index)
+                if profile is None:
+                    continue
+                if editor is active_editor:
+                    active_profile_index = len(profiles)
+                profiles.append(profile)
+
+            if not profiles:
+                self.message.setText("请至少填写一个可用的 API 配置。")
+                self.message.setStyleSheet(f"color: {BAD.name()};")
+                return
+
             updated = AppConfig(
-                base_url=self.base_url.text().strip().rstrip("/") or "https://aixj.vip",
-                api_key=self.api_key.text().strip(),
-                organization_id=self.organization_id.text().strip(),
+                active_profile_index=min(active_profile_index, len(profiles) - 1),
+                profiles=profiles,
                 fallback_budget_usd=float(self.fallback_budget.text().strip() or 0),
                 refresh_interval_seconds=max(30, int(self.refresh_interval.text().strip() or 300)),
                 window=replace(
                     self.parent().config.window,
+                    settings_width=max(520, self.width()),
+                    settings_height=max(620, self.height()),
                     alpha=min(1.0, max(0.75, float(self.alpha.text().strip() or 0.98))),
                 ),
             )
@@ -240,11 +485,66 @@ class SettingsDialog(QDialog):
         self.result_config = updated
         self.accept()
 
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        parent = self.parent()
+        if isinstance(parent, MonitorWindow):
+            parent.config.window.settings_width = max(520, self.width())
+            parent.config.window.settings_height = max(620, self.height())
+            save_config(parent.config)
+        super().closeEvent(event)
+
+
+class DialogTitleBar(QFrame):
+    def __init__(self, dialog: QDialog) -> None:
+        super().__init__(dialog)
+        self._dialog = dialog
+        self._drag_offset = QPoint()
+        self.setObjectName("titlebar")
+        self.setFixedHeight(34)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 4, 10, 4)
+        layout.setSpacing(8)
+
+        if not APP_ICON.isNull():
+            icon_label = QLabel()
+            icon_label.setPixmap(APP_ICON.pixmap(16, 16))
+            icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            layout.addWidget(icon_label)
+
+        layout.addStretch(1)
+
+        close_button = QPushButton("×")
+        close_button.setProperty("titlebar", True)
+        close_button.setFixedSize(18, 18)
+        close_button.setStyleSheet(
+            f"background: {ORB_CORE.name()};"
+            f" color: {TEXT.name()}; border: 1px solid rgba(186, 210, 255, 180);"
+            f" border-radius: 9px; font-size: 11px; font-weight: 700; padding: 0px;"
+        )
+        close_button.clicked.connect(dialog.close)
+        layout.addWidget(close_button)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_offset = event.globalPosition().toPoint() - self._dialog.frameGeometry().topLeft()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self._dialog.move(event.globalPosition().toPoint() - self._drag_offset)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
 
 class HelpDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Token Monitor Help")
+        self.setWindowTitle(f"{APP_NAME} 帮助")
+        self.setWindowIcon(APP_ICON)
         self.setModal(False)
         self.setStyleSheet(BASE_DIALOG_STYLE)
         self.setFixedSize(HELP_WIDTH, HELP_HEIGHT)
@@ -259,7 +559,7 @@ class HelpDialog(QDialog):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(10)
 
-        title = QLabel("Help")
+        title = QLabel("帮助")
         title.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {TEXT.name()};")
         layout.addWidget(title)
 
@@ -274,22 +574,22 @@ class HelpDialog(QDialog):
         )
         help_text.setHtml(
             "<div style='line-height:1.6;'>"
-            "<b>Remaining</b>: 今天还剩多少美元额度。<br>"
-            "<b>Used Today</b>: 今天已经用了多少美元。<br>"
-            "<b>Requests</b>: 今天与累计的调用次数。<br>"
-            "<b>Tokens</b>: 输入 / 输出 token 数。<br>"
-            "<b>Cache Read</b>: 缓存命中的 token 读取数。<br>"
+            "<b>剩余额度</b>: 当前还剩多少美元额度。<br>"
+            "<b>今日已用</b>: 今天已经用了多少美元。<br>"
+            "<b>请求次数</b>: 今天与累计的调用次数。<br>"
+            "<b>Token 数</b>: 输入 / 输出 token 数。<br>"
+            "<b>缓存读取</b>: 缓存命中的 token 读取数。<br>"
             "<b>TPM / RPM</b>: 每分钟 token / 请求数量。<br>"
-            "<b>Avg Delay</b>: 平均响应耗时。<br>"
-            "<b>Expires</b>: 套餐或订阅到期时间。<br><br>"
+            "<b>平均耗时</b>: 平均响应耗时。<br>"
+            "<b>到期时间</b>: 套餐或订阅到期时间。<br><br>"
             "双击悬浮球展开或收起详情卡。<br>"
-            "右键悬浮球可以刷新、查看 Help、打开 Settings。"
+            "右键悬浮球可以刷新、切换 API、查看帮助、打开设置。"
             "</div>"
         )
         help_text.setReadOnly(True)
         layout.addWidget(help_text, 1)
 
-        close_button = QPushButton("Close")
+        close_button = QPushButton("关闭")
         close_button.setProperty("accent", True)
         close_button.clicked.connect(self.close)
         layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
@@ -299,17 +599,26 @@ class DetailPopup(QDialog):
     def __init__(self, owner: "MonitorWindow") -> None:
         super().__init__(owner)
         self.owner = owner
+        self.setWindowIcon(APP_ICON)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setStyleSheet(BASE_DIALOG_STYLE)
         self.setFixedSize(DETAIL_WIDTH, DETAIL_HEIGHT)
         self.labels: dict[str, QLabel] = {}
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 14, 14, 14)
+        root.setContentsMargins(8, 8, 8, 8)
+
+        shell = QFrame(objectName="shell")
+        root.addWidget(shell)
+
+        shell_layout = QVBoxLayout(shell)
+        shell_layout.setContentsMargins(10, 10, 10, 10)
+        shell_layout.setSpacing(0)
 
         panel = QFrame(objectName="panel")
-        root.addWidget(panel)
+        shell_layout.addWidget(panel)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -319,16 +628,17 @@ class DetailPopup(QDialog):
         header.setSpacing(6)
         layout.addLayout(header)
 
-        title = QLabel("Usage Detail")
+        title = QLabel("用量详情")
         title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {TEXT.name()};")
         header.addWidget(title)
         header.addStretch(1)
 
         for text, tooltip, callback in (
-            ("R", "Refresh", owner.refresh_now),
-            ("?", "Help", owner.open_help),
-            ("S", "Settings", owner.open_settings),
-            ("X", "Close", owner.toggle_details),
+            ("R", "刷新", owner.refresh_now),
+            ("T", "切换 API", owner.open_profile_switch_menu),
+            ("?", "帮助", owner.open_help),
+            ("S", "设置", owner.open_settings),
+            ("X", "关闭", owner.toggle_details),
         ):
             button = QPushButton(text)
             button.setToolTip(tooltip)
@@ -353,8 +663,8 @@ class DetailPopup(QDialog):
         hero.setColumnStretch(0, 1)
         hero.setColumnStretch(1, 1)
         layout.addLayout(hero)
-        self.labels["remaining"] = self._metric(hero, "Remaining", 0)
-        self.labels["spent"] = self._metric(hero, "Used Today", 1)
+        self.labels["remaining"] = self._metric(hero, "剩余额度", 0)
+        self.labels["spent"] = self._metric(hero, "今日已用", 1)
 
         stats = QGridLayout()
         stats.setVerticalSpacing(9)
@@ -363,13 +673,13 @@ class DetailPopup(QDialog):
         stats.setColumnStretch(0, 0)
         stats.setColumnStretch(1, 1)
         layout.addLayout(stats)
-        self.labels["requests"] = self._stat_line(stats, "Requests", 0)
-        self.labels["tokens"] = self._stat_line(stats, "Tokens", 1)
-        self.labels["cache"] = self._stat_line(stats, "Cache Read", 2)
+        self.labels["requests"] = self._stat_line(stats, "请求次数", 0)
+        self.labels["tokens"] = self._stat_line(stats, "Token 数", 1)
+        self.labels["cache"] = self._stat_line(stats, "缓存读取", 2)
         self.labels["throughput"] = self._stat_line(stats, "TPM / RPM", 3)
-        self.labels["latency"] = self._stat_line(stats, "Avg Delay", 4)
-        self.labels["expires"] = self._stat_line(stats, "Expires", 5)
-        self.labels["status"] = self._stat_line(stats, "Status", 6)
+        self.labels["latency"] = self._stat_line(stats, "平均耗时", 4)
+        self.labels["expires"] = self._stat_line(stats, "到期时间", 5)
+        self.labels["status"] = self._stat_line(stats, "状态", 6)
 
     def _metric(self, parent: QGridLayout, title: str, column: int) -> QLabel:
         card = QFrame()
@@ -413,6 +723,8 @@ class MonitorWindow(QWidget):
             None,
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint,
         )
+        self.setWindowTitle(APP_NAME)
+        self.setWindowIcon(APP_ICON)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setWindowOpacity(0.98)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
@@ -422,8 +734,9 @@ class MonitorWindow(QWidget):
         self._drag_offset = QPoint()
         self._detail_popup: DetailPopup | None = None
         self._help_popup: HelpDialog | None = None
+        self._is_exiting = False
         self.snapshot: UsageSnapshot | None = None
-        self.status_text = "Waiting"
+        self.status_text = "等待中"
         self.status_color = MUTED
 
         try:
@@ -451,39 +764,58 @@ class MonitorWindow(QWidget):
 
     def _build_menu(self) -> None:
         self.menu = QMenu(self)
-        self.menu.setStyleSheet(
-            f"""
-            QMenu {{
-                background: {DETAIL_PANEL};
-                color: {TEXT.name()};
-                border: 1px solid {LINE};
-                border-radius: 10px;
-                padding: 6px;
-            }}
-            QMenu::item {{
-                padding: 6px 22px;
-                border-radius: 8px;
-            }}
-            QMenu::item:selected {{
-                background: {ACCENT.name()};
-                color: #101010;
-            }}
-            """
-        )
-        actions = [
-            ("Refresh", self.refresh_now),
-            ("Toggle Details", self.toggle_details),
-            ("Help", self.open_help),
-            ("Settings", self.open_settings),
-        ]
-        for text, callback in actions:
-            action = QAction(text, self)
-            action.triggered.connect(callback)
-            self.menu.addAction(action)
+        self.menu.setStyleSheet(MENU_STYLE)
+
+        refresh_action = QAction("刷新", self)
+        refresh_action.triggered.connect(self.refresh_now)
+        self.menu.addAction(refresh_action)
+
+        self.switch_menu = self.menu.addMenu("切换 API")
+        self.switch_menu.setStyleSheet(MENU_STYLE)
+        self.switch_menu.aboutToShow.connect(lambda: self._populate_profile_menu(self.switch_menu))
+
+        toggle_action = QAction("展开/收起详情", self)
+        toggle_action.triggered.connect(self.toggle_details)
+        self.menu.addAction(toggle_action)
+
+        help_action = QAction("帮助", self)
+        help_action.triggered.connect(self.open_help)
+        self.menu.addAction(help_action)
+
+        settings_action = QAction("设置", self)
+        settings_action.triggered.connect(self.open_settings)
+        self.menu.addAction(settings_action)
         self.menu.addSeparator()
-        exit_action = QAction("Exit", self)
-        exit_action.triggered.connect(self.close)
+        exit_action = QAction("退出", self)
+        exit_action.triggered.connect(self.exit_app)
         self.menu.addAction(exit_action)
+
+    def _profile_label(self, index: int, profile: ApiProfile) -> str:
+        name = profile.name.strip() or f"API {index + 1}"
+        return f"{name}  [{profile.base_url or '未填写地址'}]"
+
+    def _populate_profile_menu(self, menu: QMenu) -> None:
+        menu.clear()
+        for index, profile in enumerate(self.config.profiles):
+            action = QAction(self._profile_label(index, profile), menu)
+            action.setCheckable(True)
+            action.setChecked(index == self.config.active_profile_index)
+            action.triggered.connect(lambda _checked=False, idx=index: self.set_active_profile(idx))
+            menu.addAction(action)
+
+        if not self.config.profiles:
+            empty_action = QAction("还没有配置 API", menu)
+            empty_action.setEnabled(False)
+            menu.addAction(empty_action)
+
+    def open_profile_switch_menu(self) -> None:
+        popup = QMenu(self)
+        popup.setStyleSheet(MENU_STYLE)
+        self._populate_profile_menu(popup)
+        anchor = QCursor.pos()
+        if self._detail_popup is not None and self._detail_popup.isVisible():
+            anchor = self._detail_popup.mapToGlobal(QPoint(self._detail_popup.width() - 10, 30))
+        popup.exec(anchor)
 
     def _apply_mask(self) -> None:
         rect = self.rect().adjusted(ORB_MASK_INSET, ORB_MASK_INSET, -ORB_MASK_INSET, -ORB_MASK_INSET)
@@ -557,9 +889,9 @@ class MonitorWindow(QWidget):
         painter.drawEllipse(QRectF(center_x + 28, center_y - 34, 10, 10))
 
         remaining = _format_usd(snapshot.remaining_budget_usd, short=True) if snapshot is not None else "--"
-        detail = "left today" if snapshot is not None else _trim(self.status_text, 12)
-        micro = "syncing" if self._fetch_in_flight else _trim(self.status_text, 10)
-        bottom_left = f"{snapshot.request_count} req" if snapshot is not None else "double click"
+        detail = "今日剩余" if snapshot is not None else _trim(self.status_text, 12)
+        micro = "同步中" if self._fetch_in_flight else _trim(self.status_text, 10)
+        bottom_left = f"{snapshot.request_count} 次" if snapshot is not None else "双击详情"
         bottom_right = f"{int(ratio * 100)}%" if snapshot is not None else micro
 
         self._draw_text(
@@ -676,10 +1008,60 @@ class MonitorWindow(QWidget):
             return
 
         self.config = dialog.result_config
+        self.snapshot = None
         save_config(self.config)
         self.setWindowOpacity(self.config.window.alpha)
         self._set_status("配置已保存，正在刷新...", MUTED)
         self.refresh_now()
+
+    def set_active_profile(self, index: int) -> None:
+        if index < 0 or index >= len(self.config.profiles):
+            return
+
+        target = self.config.profiles[index]
+        if not target.base_url or not target.api_key:
+            self._set_status("请先在设置里完善这个 API 配置。", BAD)
+            return
+
+        if index == self.config.active_profile_index:
+            self._set_status(f"当前已是 {self.config.current_profile.name}。", MUTED)
+            return
+
+        self.config.active_profile_index = index
+        self.snapshot = None
+        save_config(self.config)
+        self._set_status(f"已切换到 {self.config.current_profile.name}，正在刷新...", MUTED)
+        self.refresh_now()
+
+    def exit_app(self) -> None:
+        if self._is_exiting:
+            return
+
+        self._is_exiting = True
+        self._poll_timer.stop()
+        self._refresh_timer.stop()
+        self._fetch_in_flight = False
+
+        if self.menu.isVisible():
+            self.menu.hide()
+        self.menu.close()
+        self.menu.deleteLater()
+
+        for popup_name in ("_detail_popup", "_help_popup"):
+            popup = getattr(self, popup_name)
+            if popup is not None:
+                popup.hide()
+                popup.close()
+                popup.deleteLater()
+                setattr(self, popup_name, None)
+
+        self.hide()
+        self.close()
+
+        app = QApplication.instance()
+        if app is not None:
+            app.closeAllWindows()
+            app.quit()
 
     def refresh_now(self) -> None:
         if self._fetch_in_flight:
@@ -719,7 +1101,7 @@ class MonitorWindow(QWidget):
     def _apply_snapshot(self, snapshot: UsageSnapshot) -> None:
         self.snapshot = snapshot
         updated_at = datetime.now().strftime("%H:%M:%S")
-        self._set_status(f"updated {updated_at}", MUTED)
+        self._set_status(f"{self.config.current_profile.name} 已更新 {updated_at}", MUTED)
 
     def _update_detail_popup(self) -> None:
         if self._detail_popup is None:
@@ -728,7 +1110,7 @@ class MonitorWindow(QWidget):
         labels = self._detail_popup.labels
         snapshot = self.snapshot
         if snapshot is None:
-            labels["plan"].setText("Waiting for data")
+            labels["plan"].setText(f"{self.config.current_profile.name} · 等待数据")
             labels["remaining"].setText("--")
             labels["spent"].setText("--")
             labels["requests"].setText("-")
@@ -741,7 +1123,7 @@ class MonitorWindow(QWidget):
             labels["status"].setStyleSheet(f"font-size: 12px; color: {self.status_color.name()};")
             return
 
-        labels["plan"].setText(snapshot.plan_name or snapshot.source_label)
+        labels["plan"].setText(f"{self.config.current_profile.name} · {snapshot.plan_name or snapshot.source_label}")
         labels["remaining"].setText(_format_usd(snapshot.remaining_budget_usd))
         labels["remaining"].setStyleSheet(
             f"font-family: Consolas; font-size: 20px; font-weight: 700; color: {(GOOD if snapshot.remaining_budget_usd >= 0 else BAD).name()};"
@@ -750,8 +1132,8 @@ class MonitorWindow(QWidget):
         labels["spent"].setStyleSheet(
             f"font-family: Consolas; font-size: 20px; font-weight: 700; color: {ACCENT_SOFT.name()};"
         )
-        labels["requests"].setText(f"{_format_compact_int(snapshot.request_count)} today | {_format_compact_int(snapshot.overall_request_count)} overall")
-        labels["tokens"].setText(f"{_format_compact_int(snapshot.input_tokens)} in | {_format_compact_int(snapshot.output_tokens)} out")
+        labels["requests"].setText(f"{_format_compact_int(snapshot.request_count)} 今日 | {_format_compact_int(snapshot.overall_request_count)} 累计")
+        labels["tokens"].setText(f"{_format_compact_int(snapshot.input_tokens)} 输入 | {_format_compact_int(snapshot.output_tokens)} 输出")
         labels["cache"].setText(_format_compact_int(snapshot.cached_tokens))
         labels["throughput"].setText(f"{_format_compact_int(snapshot.tpm)} / {_format_compact_int(snapshot.rpm)}")
         labels["latency"].setText(_format_ms(snapshot.average_duration_ms))
@@ -770,6 +1152,7 @@ class MonitorWindow(QWidget):
         self.update()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        self._is_exiting = True
         self._poll_timer.stop()
         self._refresh_timer.stop()
         if self._detail_popup is not None:
@@ -784,6 +1167,11 @@ def run_app() -> None:
     owns_app = app is None
     if app is None:
         app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(True)
+    app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_NAME)
+    if not APP_ICON.isNull():
+        app.setWindowIcon(APP_ICON)
 
     window = MonitorWindow()
     window.show()

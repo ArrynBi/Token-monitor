@@ -1,7 +1,19 @@
 {
-  "base_url": "https://aixj.vip",
-  "api_key": "",
-  "organization_id": "",
+  "active_profile_index": 0,
+  "profiles": [
+    {
+      "name": "主 API",
+      "base_url": "https://aixj.vip",
+      "api_key": "",
+      "organization_id": ""
+    },
+    {
+      "name": "备用 API",
+      "base_url": "",
+      "api_key": "",
+      "organization_id": ""
+    }
+  ],
   "fallback_budget_usd": 100.0,
   "refresh_interval_seconds": 300,
   "window": {

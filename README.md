@@ -4,7 +4,7 @@
 
 - [下载 token-monitor.exe](https://github.com/ArrynBi/Token-monitor/releases/latest/download/token-monitor.exe)
 
-`token-monitor` 是一个面向 Windows 的置顶悬浮球，用来查看 OpenAI 兼容接口或 OpenAI 官方组织接口的用量情况。
+`token-monitor` 是一个桌面置顶悬浮球，用来查看 OpenAI 兼容接口或 OpenAI 官方组织接口的用量情况。
 
 当前版本重点展示：
 
@@ -14,6 +14,7 @@
 - 请求数、输入输出 tokens、缓存读取、TPM / RPM、平均耗时
 - 订阅到期时间
 - 最近一次刷新状态
+- API 列表快速切换
 
 ## 支持的取数方式
 
@@ -58,6 +59,8 @@
 - 双击悬浮球可以展开或收起详情弹窗
 - 右键悬浮球可以打开快捷菜单
 - 详情弹窗顶部可以快速执行 `Refresh`、`Help`、`Settings`、`Close`
+- 右键菜单和详情弹窗顶部都支持 `Switch API`
+- 设置页可以添加多个 API 配置，并按列表选择切换
 
 ## 安装与运行
 
@@ -80,44 +83,84 @@ python main.py
 
 可在设置窗口或 `config.json` 中配置：
 
-- `base_url`
-  OpenAI 兼容服务地址，默认是 `https://aixj.vip`
-- `api_key`
-  你的 API Key
-- `organization_id`
-  使用 OpenAI 官方组织接口时需要填写；兼容网关通常可留空
+- `profiles`
+  API 配置列表，每项都包含名称、Base URL、API Key、Organization ID
+- `active_profile_index`
+  当前启用的是列表里的第几个 API
 - `fallback_budget_usd`
   当上游没有明确返回额度上限时，使用这个值估算剩余额度
 - `refresh_interval_seconds`
   自动刷新间隔，最小 30 秒
 
+`Base URL` 只填写主域名，例如 `https://mdlbus.com`，不要填写成 `https://mdlbus.com/v1`。
+
 示例配置见 [config.example.json](./config.example.json)。
 
-## 打包 EXE
+## 打包
 
-项目已包含 PyInstaller 配置：
+项目现在分别提供 Windows 和 macOS 的打包入口：
 
-- [token-monitor.spec](./token-monitor.spec)
-- [build_exe.bat](./build_exe.bat)
+- Windows: [token-monitor.win.spec](./token-monitor.win.spec) + [build_win.bat](./build_win.bat)
+- macOS: [token-monitor.mac.spec](./token-monitor.mac.spec) + [build_macos.sh](./build_macos.sh)
+
+### Windows
 
 直接运行：
 
 ```powershell
-build_exe.bat
+build_win.bat
 ```
 
 打包完成后，输出文件位于：
 
 ```text
-dist/token-monitor.exe
+dist/Token悬浮球.exe
 ```
 
-在 `exe` 模式下，程序会在可执行文件同目录读取和生成 `config.json`。
+同时会生成：
+
+```text
+release/token-monitor-win.zip
+```
+
+Windows 图标会在打包前自动由 `token_orb.svg` 生成 `token_orb.ico` 并嵌入 `exe`。
+
+兼容旧入口：
+
+```powershell
+build_exe.bat
+```
+
+在 Windows `exe` 模式下，程序会在可执行文件同目录读取和生成 `config.json`。
+
+### macOS
+
+需要在 macOS 机器上运行：
+
+```bash
+chmod +x build_macos.sh
+./build_macos.sh
+```
+
+打包完成后，输出文件位于：
+
+```text
+dist/Token悬浮球.app
+```
+
+同时会生成：
+
+```text
+release/token-monitor-macos.zip
+```
+
+macOS 图标现在会在打包前自动由 `token_orb.svg` 生成 `build/token_orb.iconset`，再通过 `iconutil` 生成 `src/token_monitor/assets/token_orb.icns` 并嵌入 `.app`。
 
 ## 依赖
 
 - Python 3.11+
 - PySide6
+- Pillow
 
 ## 项目结构
 
@@ -126,7 +169,10 @@ token-monitor/
   main.py
   config.example.json
   build_exe.bat
-  token-monitor.spec
+  build_win.bat
+  build_macos.sh
+  token-monitor.win.spec
+  token-monitor.mac.spec
   src/
     token_monitor/
       __init__.py
