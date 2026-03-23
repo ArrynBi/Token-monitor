@@ -516,11 +516,16 @@ class DialogTitleBar(QFrame):
 
         close_button = QPushButton("×")
         close_button.setProperty("titlebar", True)
-        close_button.setFixedSize(18, 18)
+        close_button.setFixedSize(14, 14)
+        close_button.setToolTip("关闭")
         close_button.setStyleSheet(
-            f"background: {ORB_CORE.name()};"
-            f" color: {TEXT.name()}; border: 1px solid rgba(186, 210, 255, 180);"
-            f" border-radius: 9px; font-size: 11px; font-weight: 700; padding: 0px;"
+            f"background: qradialgradient(cx:0.35, cy:0.3, radius:0.95,"
+            f" fx:0.35, fy:0.3,"
+            f" stop:0 rgba(255, 179, 108, 235),"
+            f" stop:0.58 rgba(255, 138, 61, 228),"
+            f" stop:1 rgba(126, 58, 18, 220));"
+            f" color: #101010; border: 1px solid rgba(255, 212, 166, 190);"
+            f" border-radius: 7px; font-size: 10px; font-weight: 700; padding: 0px;"
         )
         close_button.clicked.connect(dialog.close)
         layout.addWidget(close_button)

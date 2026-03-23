@@ -43,4 +43,13 @@ app = BUNDLE(
     name='Token悬浮球.app',
     icon=str(icon_file) if icon_file.exists() else None,
     bundle_identifier='com.arrynbi.token-orb',
+    info_plist={
+        'CFBundleName': 'Token悬浮球',
+        'CFBundleDisplayName': 'Token悬浮球',
+        'CFBundleShortVersionString': '1.0.0',
+        'CFBundleVersion': '1.0.0',
+        'CFBundleIdentifier': 'com.arrynbi.token-orb',
+        'NSHighResolutionCapable': True,
+        'LSMinimumSystemVersion': '11.0',
+    },
 )

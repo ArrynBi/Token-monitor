@@ -2,7 +2,7 @@
 
 如果只想下载程序，直接点击这里：
 
-- [下载 token-monitor.exe](https://github.com/ArrynBi/Token-monitor/releases/latest/download/token-monitor.exe)
+- [GitHub Releases](https://github.com/ArrynBi/Token-monitor/releases)
 
 `token-monitor` 是一个桌面置顶悬浮球，用来查看 OpenAI 兼容接口或 OpenAI 官方组织接口的用量情况。
 
@@ -125,6 +125,8 @@ release/token-monitor-win.zip
 
 Windows 图标会在打包前自动由 `token_orb.svg` 生成 `token_orb.ico` 并嵌入 `exe`。
 
+`build/`、`dist/`、`release/` 和生成出来的图标文件都属于本地产物，不再提交到 GitHub 仓库。
+
 兼容旧入口：
 
 ```powershell
@@ -155,6 +157,17 @@ release/token-monitor-macos.zip
 ```
 
 macOS 图标现在会在打包前自动由 `token_orb.svg` 生成 `build/token_orb.iconset`，再通过 `iconutil` 生成 `src/token_monitor/assets/token_orb.icns` 并嵌入 `.app`。
+
+macOS 发布包还会额外包含：
+
+- `README-首次打开.txt`
+- `打开Token悬浮球.command`
+
+推荐首次使用时双击 `打开Token悬浮球.command`，它会自动移除下载隔离标记并启动应用。应用配置会保存到：
+
+```text
+~/Library/Application Support/Token悬浮球/config.json
+```
 
 ## 依赖
 

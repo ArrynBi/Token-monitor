@@ -2,16 +2,30 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any
 
 
-if getattr(sys, "frozen", False):
-    PROJECT_ROOT = Path(sys.executable).resolve().parent
-else:
-    PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CONFIG_PATH = PROJECT_ROOT / "config.json"
+APP_NAME = "Token悬浮球"
+
+
+def _runtime_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[2]
+
+
+def _config_path() -> Path:
+    if getattr(sys, "frozen", False) and sys.platform == "darwin":
+        home = Path(os.path.expanduser("~"))
+        return home / "Library" / "Application Support" / APP_NAME / "config.json"
+    return _runtime_root() / "config.json"
+
+
+PROJECT_ROOT = _runtime_root()
+CONFIG_PATH = _config_path()
 
 
 class ConfigError(RuntimeError):
@@ -174,6 +188,7 @@ def load_config() -> AppConfig:
 
 def save_config(config: AppConfig) -> None:
     payload = asdict(config)
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",

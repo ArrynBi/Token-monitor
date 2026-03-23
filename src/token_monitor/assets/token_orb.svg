@@ -1,39 +1,30 @@
 <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(96 78) rotate(49.6355) scale(175.212)">
-      <stop offset="0" stop-color="#1B2742"/>
-      <stop offset="0.62" stop-color="#0F1A2D"/>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(90 76) rotate(47) scale(188)">
+      <stop offset="0" stop-color="#274066"/>
+      <stop offset="0.58" stop-color="#14233A"/>
       <stop offset="1" stop-color="#08111F"/>
     </radialGradient>
-    <radialGradient id="core" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(110 95) rotate(54.1623) scale(103.667)">
-      <stop offset="0" stop-color="#243B61"/>
-      <stop offset="0.55" stop-color="#121E33"/>
-      <stop offset="1" stop-color="#0A1220"/>
+    <radialGradient id="core" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(112 98) rotate(48) scale(112)">
+      <stop offset="0" stop-color="#31558A"/>
+      <stop offset="0.54" stop-color="#1A2B46"/>
+      <stop offset="1" stop-color="#0B1321"/>
     </radialGradient>
-    <linearGradient id="ring" x1="56" y1="52" x2="202" y2="206" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8FB4FF"/>
-      <stop offset="1" stop-color="#FFB36C"/>
+    <linearGradient id="ring" x1="62" y1="56" x2="197" y2="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B6D0FF"/>
+      <stop offset="1" stop-color="#FFBF7A"/>
     </linearGradient>
-    <filter id="shadow" x="10" y="14" width="236" height="236" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dy="10"/>
-      <feGaussianBlur stdDeviation="16"/>
-      <feComposite in2="hardAlpha" operator="out"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0.0117647 0 0 0 0 0.0392157 0 0 0 0 0.0823529 0 0 0 0.42 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape"/>
-    </filter>
   </defs>
+
   <rect width="256" height="256" rx="64" fill="#08111F"/>
-  <g filter="url(#shadow)">
-    <circle cx="128" cy="118" r="84" fill="url(#bg)"/>
-    <circle cx="128" cy="118" r="61" fill="url(#core)" stroke="#29446E" stroke-width="2"/>
-    <circle cx="128" cy="118" r="74" stroke="#20304D" stroke-width="10"/>
-    <path d="M188 118C188 151.137 161.137 178 128 178C94.8629 178 68 151.137 68 118C68 84.8629 94.8629 58 128 58" stroke="url(#ring)" stroke-width="10" stroke-linecap="round"/>
-    <circle cx="169" cy="82" r="8" fill="#34D399" stroke="#08111F" stroke-width="2"/>
-    <circle cx="106" cy="93" r="9" fill="#EDF4FF" fill-opacity="0.16"/>
-    <path d="M101 138L126 98L151 138" stroke="#EDF4FF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M111 132H141" stroke="#FFB36C" stroke-width="8" stroke-linecap="round"/>
-  </g>
+  <circle cx="128" cy="128" r="92" fill="url(#bg)"/>
+  <circle cx="128" cy="128" r="78" stroke="#20324F" stroke-width="16"/>
+  <path d="M202 128C202 168.869 168.869 202 128 202C87.1309 202 54 168.869 54 128C54 87.1309 87.1309 54 128 54" stroke="url(#ring)" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="128" cy="128" r="58" fill="url(#core)" stroke="#436A9F" stroke-width="4"/>
+
+  <path d="M91 102H165" stroke="#F3F8FF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M128 102V166" stroke="#F3F8FF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M106 166H150" stroke="#FFBF7A" stroke-width="12" stroke-linecap="round"/>
+
+  <circle cx="173" cy="84" r="11" fill="#39D79C" stroke="#08111F" stroke-width="5"/>
 </svg>

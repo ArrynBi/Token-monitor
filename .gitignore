@@ -3,3 +3,6 @@ __pycache__/
 build/
 dist/
 config.json
+release/
+src/token_monitor/assets/token_orb.ico
+src/token_monitor/assets/token_orb.icns
