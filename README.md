@@ -194,3 +194,13 @@ token-monitor/
       openai_api.py
       ui.py
 ```
+
+## 附加工具
+
+如果你想做一个可复现的“模型身份实验”，项目里额外提供了：
+
+- [tools/model_identity_experiment.py](./tools/model_identity_experiment.py)
+- [tools/model_identity_cases.json](./tools/model_identity_cases.json)
+- [docs/model_identity_experiment.md](./docs/model_identity_experiment.md)
+
+它适合验证某个 OpenAI 兼容接口在 `gpt-5` 和 `gpt-5.4` 之间的返回差异，并生成盲审包。更详细说明见 [docs/model_identity_experiment.md](./docs/model_identity_experiment.md)。

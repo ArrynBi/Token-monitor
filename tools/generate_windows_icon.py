@@ -33,7 +33,7 @@ def build_icon_frame(svg_path: Path, size: int) -> Image.Image:
     if oversample_size != size:
         image = image.resize((size, size), Image.Resampling.LANCZOS)
 
-    if 32 <= size <= 64:
+    if 32 <= size <= 128:
         image = ImageEnhance.Contrast(image).enhance(1.08)
         image = image.filter(ImageFilter.UnsharpMask(radius=1.1, percent=165, threshold=2))
     elif size == 24:
@@ -51,12 +51,15 @@ def main() -> int:
     app = QGuiApplication.instance() or QGuiApplication(sys.argv)
     _ = app
 
-    sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
+    # Include the common Explorer/desktop high-DPI pick targets so Windows can
+    # use a native frame instead of scaling 48->72 or 64->96.
+    sizes = [16, 20, 24, 32, 40, 48, 64, 72, 80, 96, 128, 192, 256]
     frames = {size: build_icon_frame(svg_path, size) for size in sizes}
     largest_size = max(sizes)
     frames[largest_size].save(
         ico_path,
         format="ICO",
+        bitmap_format="bmp",
         sizes=[(size, size) for size in sizes],
         append_images=[frames[size] for size in sizes if size != largest_size],
     )

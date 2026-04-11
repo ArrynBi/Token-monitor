@@ -16,12 +16,14 @@
   ],
   "fallback_budget_usd": 100.0,
   "refresh_interval_seconds": 300,
+  "launch_at_startup": false,
   "window": {
     "x": 40,
     "y": 40,
     "width": 148,
     "height": 148,
     "alpha": 0.98,
-    "always_on_top": true
+    "always_on_top": true,
+    "show_in_taskbar": true
   }
 }

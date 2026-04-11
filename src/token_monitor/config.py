@@ -42,6 +42,7 @@ class WindowConfig:
     settings_height: int = 720
     alpha: float = 0.98
     always_on_top: bool = True
+    show_in_taskbar: bool = True
 
 
 @dataclass
@@ -58,6 +59,7 @@ class AppConfig:
     profiles: list[ApiProfile] = field(default_factory=lambda: [ApiProfile()])
     fallback_budget_usd: float = 100.0
     refresh_interval_seconds: int = 300
+    launch_at_startup: bool = False
     window: WindowConfig = field(default_factory=WindowConfig)
 
     @property
@@ -108,6 +110,7 @@ def _coerce_window(data: dict) -> WindowConfig:
         settings_height=int(data.get("settings_height", 720)),
         alpha=float(data.get("alpha", 0.97)),
         always_on_top=bool(data.get("always_on_top", True)),
+        show_in_taskbar=bool(data.get("show_in_taskbar", True)),
     )
 
 
@@ -168,6 +171,7 @@ def load_config() -> AppConfig:
         profiles=profiles,
         fallback_budget_usd=float(raw.get("fallback_budget_usd", raw.get("monthly_budget_usd", 100.0))),
         refresh_interval_seconds=max(30, int(raw.get("refresh_interval_seconds", 300))),
+        launch_at_startup=bool(raw.get("launch_at_startup", False)),
         window=window,
     )
     if "active_profile" in raw and "active_profile_index" not in raw:

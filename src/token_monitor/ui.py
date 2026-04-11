@@ -25,6 +25,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -44,6 +45,7 @@ from PySide6.QtWidgets import (
 
 from .config import ApiProfile, AppConfig, ConfigError, load_config, save_config
 from .openai_api import OpenAIMonitorError, UsageSnapshot, fetch_snapshot
+from .startup import StartupError, startup_supported, sync_launch_at_startup
 
 
 APP_NAME = "Token悬浮球"
@@ -306,6 +308,14 @@ class SettingsDialog(QDialog):
         self.fallback_budget = QLineEdit(str(config.fallback_budget_usd))
         self.refresh_interval = QLineEdit(str(config.refresh_interval_seconds))
         self.alpha = QLineEdit(str(config.window.alpha))
+        self.launch_at_startup = QCheckBox("登录 Windows 时自动启动")
+        self.launch_at_startup.setChecked(config.launch_at_startup)
+        self.show_in_taskbar = QCheckBox("启动后在任务栏显示")
+        self.show_in_taskbar.setChecked(config.window.show_in_taskbar)
+
+        if not startup_supported():
+            self.launch_at_startup.setEnabled(False)
+            self.launch_at_startup.setToolTip("仅 Windows 支持开机启动")
 
         rows = [
             ("兜底额度（无明确额度时）", self.fallback_budget),
@@ -316,6 +326,16 @@ class SettingsDialog(QDialog):
             label = QLabel(label_text)
             label.setProperty("muted", True)
             form.addRow(label, widget)
+
+        startup_options = QWidget()
+        startup_layout = QVBoxLayout(startup_options)
+        startup_layout.setContentsMargins(0, 0, 0, 0)
+        startup_layout.setSpacing(8)
+        startup_layout.addWidget(self.launch_at_startup)
+        startup_layout.addWidget(self.show_in_taskbar)
+        startup_label = QLabel("启动选项")
+        startup_label.setProperty("muted", True)
+        form.addRow(startup_label, startup_options)
 
         self.message = QLabel("双击悬浮球展开详情，右键菜单和详情卡都可以一键切换 API。")
         self.message.setProperty("muted", True)
@@ -470,11 +490,13 @@ class SettingsDialog(QDialog):
                 profiles=profiles,
                 fallback_budget_usd=float(self.fallback_budget.text().strip() or 0),
                 refresh_interval_seconds=max(30, int(self.refresh_interval.text().strip() or 300)),
+                launch_at_startup=self.launch_at_startup.isChecked(),
                 window=replace(
                     self.parent().config.window,
                     settings_width=max(520, self.width()),
                     settings_height=max(620, self.height()),
                     alpha=min(1.0, max(0.75, float(self.alpha.text().strip() or 0.98))),
+                    show_in_taskbar=self.show_in_taskbar.isChecked(),
                 ),
             )
         except ValueError:
@@ -724,10 +746,7 @@ class MonitorWindow(QWidget):
     request_render = Signal()
 
     def __init__(self) -> None:
-        super().__init__(
-            None,
-            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint,
-        )
+        super().__init__(None)
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(APP_ICON)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -751,11 +770,18 @@ class MonitorWindow(QWidget):
             self.status_text = str(exc)
             self.status_color = BAD
 
+        self._apply_window_flags()
         self.setFixedSize(self.config.window.width, self.config.window.height)
         self.move(self.config.window.x, self.config.window.y)
         self.setWindowOpacity(self.config.window.alpha)
         self._apply_mask()
         self._build_menu()
+
+        try:
+            sync_launch_at_startup(self.config.launch_at_startup)
+        except StartupError as exc:
+            self.status_text = str(exc)
+            self.status_color = BAD
 
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self._poll_queue)
@@ -766,6 +792,23 @@ class MonitorWindow(QWidget):
         self._refresh_timer.timeout.connect(self.refresh_now)
 
         QTimer.singleShot(250, self.refresh_now)
+
+    def _window_flags(self) -> Qt.WindowType:
+        flags = Qt.WindowType.FramelessWindowHint
+        flags |= Qt.WindowType.Window if self.config.window.show_in_taskbar else Qt.WindowType.Tool
+        if self.config.window.always_on_top:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        return flags
+
+    def _apply_window_flags(self) -> None:
+        was_visible = self.isVisible()
+        position = self.pos()
+        self.setWindowFlags(self._window_flags())
+        self.move(position)
+        self._apply_mask()
+        if was_visible:
+            self.show()
+            self.raise_()
 
     def _build_menu(self) -> None:
         self.menu = QMenu(self)
@@ -1012,9 +1055,22 @@ class MonitorWindow(QWidget):
         if dialog.exec() != QDialog.DialogCode.Accepted or dialog.result_config is None:
             return
 
-        self.config = dialog.result_config
+        updated_config = dialog.result_config
+        try:
+            sync_launch_at_startup(updated_config.launch_at_startup)
+        except StartupError as exc:
+            self._set_status(str(exc), BAD)
+            return
+
+        flags_changed = (
+            updated_config.window.show_in_taskbar != self.config.window.show_in_taskbar
+            or updated_config.window.always_on_top != self.config.window.always_on_top
+        )
+        self.config = updated_config
         self.snapshot = None
         save_config(self.config)
+        if flags_changed:
+            self._apply_window_flags()
         self.setWindowOpacity(self.config.window.alpha)
         self._set_status("配置已保存，正在刷新...", MUTED)
         self.refresh_now()
